@@ -2,8 +2,10 @@ from __future__ import annotations
 
 import uuid
 
+from arq.connections import RedisSettings
 from sqlalchemy import select
 
+from app.core.config import get_settings
 from app.db.session import AsyncSessionLocal
 from app.models.job import Job, JobStatus
 from app.services.credit_service import refund_summarise_credits_if_needed
@@ -49,4 +51,5 @@ async def summarise_task(ctx, job_id: str, payload: dict) -> dict:
 
 
 class WorkerSettings:
+    redis_settings = RedisSettings.from_dsn(get_settings().redis_url)
     functions = [summarise_task]
