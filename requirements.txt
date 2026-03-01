@@ -12,3 +12,4 @@ arq
 structlog
 python-dotenv
 email-validator
+itsdangerous
