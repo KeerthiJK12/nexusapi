@@ -80,6 +80,16 @@ alembic downgrade -1
 3. Start API server (`uvicorn ...`).
 4. Start worker (`arq app.worker.WorkerSettings`).
 
+## Important Deployment Note
+
+`/api/summarise` is asynchronous and requires an ARQ worker process to be running.
+If the API is live but no worker is running, jobs will stay pending and can later fail/timeout.
+
+Current live setup used for this submission:
+- API is hosted on Render.
+- Redis is Upstash.
+- Worker is run as a separate process using the same `DATABASE_URL` and `REDIS_URL`.
+
 ## cURL Examples
 
 ```bash
