@@ -8,77 +8,66 @@ NexusAPI is a multi-tenant, credit-gated backend API built with FastAPI, async S
 - PostgreSQL
 - Redis
 
-## Run Commands
+## Run Locally (Exact Commands)
+
+### Start Dependencies First
+
+If you run PostgreSQL and Redis in WSL/Linux:
 
 ```bash
-python -m venv venv
-source venv/bin/activate
-# Windows: venv\\Scripts\\activate
+sudo service postgresql start
+redis-server
+```
 
-pip install fastapi uvicorn[standard] sqlalchemy asyncpg psycopg2-binary \
-  alembic python-jose[cryptography] authlib pydantic redis arq structlog \
-  python-dotenv email-validator
+If Redis is already running, `redis-server` may show port in use. That is fine.
 
-cd nexusapi
+### Windows (PowerShell)
+
+```powershell
+cd c:\Users\laptop\OneDrive\Desktop\Backend\nexusapi
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+pip install -r requirements.txt
+alembic upgrade head
 uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
-Run worker in a separate terminal:
+In a second terminal (worker):
 
-```bash
-cd nexusapi
-arq app.worker.WorkerSettings
+```powershell
+cd c:\Users\laptop\OneDrive\Desktop\Backend\nexusapi
+.\.venv\Scripts\Activate.ps1
+python -m arq app.worker.WorkerSettings
 ```
+
 
 ## Environment Variables
 
-`APP_NAME`: API name.
-`ENVIRONMENT`: Runtime env label.
-`DEBUG`: FastAPI debug switch.
-`DATABASE_URL`: PostgreSQL DSN.
-`REDIS_URL`: Redis DSN for ARQ and rate limits.
-`SECRET_KEY`: JWT + session signing key.
-`JWT_ALGORITHM`: JWT signing algorithm.
-`ACCESS_TOKEN_EXPIRE_MINUTES`: JWT lifetime; default 1440 (24h).
-`GOOGLE_CLIENT_ID`: Google OAuth client id.
-`GOOGLE_CLIENT_SECRET`: Google OAuth client secret.
-`OAUTH_REDIRECT_URI`: Callback URI (`/auth/callback`).
-`RATE_LIMIT_PER_MINUTE`: Per-org request limit on product endpoints.
-
-Example `.env`:
-
-```env
-APP_NAME=NexusAPI
-ENVIRONMENT=dev
-DEBUG=false
-DATABASE_URL=postgresql+asyncpg://postgres:postgres@localhost:5432/nexusapi
-REDIS_URL=redis://localhost:6379/0
-SECRET_KEY=change-me
-JWT_ALGORITHM=HS256
-ACCESS_TOKEN_EXPIRE_MINUTES=1440
-GOOGLE_CLIENT_ID=
-GOOGLE_CLIENT_SECRET=
-OAUTH_REDIRECT_URI=http://localhost:8000/auth/callback
-RATE_LIMIT_PER_MINUTE=60
-```
+`APP_NAME` - API name shown in app metadata.
+`ENVIRONMENT` - Environment label (`dev`, `prod`, etc.).
+`DEBUG` - Debug mode toggle (`true`/`false`).
+`DATABASE_URL` - PostgreSQL connection string used by the app.
+`REDIS_URL` - Redis connection string for queue and rate limiting.
+`SECRET_KEY` - Signing key for JWT/session security.
+`JWT_ALGORITHM` - JWT signing algorithm (for example `HS256`).
+`ACCESS_TOKEN_EXPIRE_MINUTES` - JWT expiry in minutes.
+`GOOGLE_CLIENT_ID` - Google OAuth client ID.
+`GOOGLE_CLIENT_SECRET` - Google OAuth client secret.
+`OAUTH_REDIRECT_URI` - OAuth callback URL (`/auth/callback`).
+`RATE_LIMIT_PER_MINUTE` - Per-organisation API rate limit.
 
 If PostgreSQL is running inside WSL while API runs on Windows, `localhost` may not work.
 In that case set `DATABASE_URL` with your WSL IP (for example `172.x.x.x`).
 
-## Alembic Migration Commands
+## Database Migrations
 
-```bash
-cd nexusapi
-alembic upgrade head
-alembic downgrade -1
-```
+Run latest migrations:
 
-## Local Startup Order
+`alembic upgrade head`
 
-1. Start PostgreSQL and Redis.
-2. Run `alembic upgrade head`.
-3. Start API server (`uvicorn ...`).
-4. Start worker (`arq app.worker.WorkerSettings`).
+Rollback one migration:
+
+`alembic downgrade -1`
 
 ## Important Deployment Note
 
@@ -90,31 +79,54 @@ Current live setup used for this submission:
 - Redis is Upstash.
 - Worker is run as a separate process using the same `DATABASE_URL` and `REDIS_URL`.
 
-## cURL Examples
+Start worker for live setup (local worker processing live queue):
 
-```bash
-curl -X GET http://localhost:8000/health
-
-curl -X GET http://localhost:8000/credits/balance \
-  -H "Authorization: Bearer <jwt>"
-
-curl -X POST http://localhost:8000/credits/grant \
-  -H "Authorization: Bearer <admin_jwt>" \
-  -H "Content-Type: application/json" \
-  -d '{"amount":100,"reason":"initial funding"}'
-
-curl -X POST http://localhost:8000/api/analyse \
-  -H "Authorization: Bearer <jwt>" \
-  -H "Idempotency-Key: 90a5e2d8-bca6-467b-b254-6f2e46a81a86" \
-  -H "Content-Type: application/json" \
-  -d '{"text":"This is a valid sample text for analysis endpoint."}'
-
-curl -X POST http://localhost:8000/api/summarise \
-  -H "Authorization: Bearer <jwt>" \
-  -H "Idempotency-Key: 453f89c2-b87f-42e7-b59c-470d45ec75f8" \
-  -H "Content-Type: application/json" \
-  -d '{"text":"This is a valid sample text for async summarisation endpoint."}'
-
-curl -X GET http://localhost:8000/api/jobs/<job_id> \
-  -H "Authorization: Bearer <jwt>"
+```powershell
+cd c:\Users\laptop\OneDrive\Desktop\Backend\nexusapi
+.\.venv\Scripts\Activate.ps1
+$env:DATABASE_URL="postgresql+asyncpg://nexusapi_db_user:bTzWlpruOiukcqxrgweFbA3xy2HHOCVM@dpg-d6hht0h4tr6s73bscan0-a.singapore-postgres.render.com/nexusapi_db"
+$env:REDIS_URL="rediss://default:ARbQAAImcDI2ZTVhZGY3YzUwYzc0NzBlYmE2MDFhNjA1OTM1ZDJiMXAyNTg0MA@humorous-grubworm-5840.upstash.io:6379"
+python -m arq app.worker.WorkerSettings
 ```
+
+## Postman Example Calls
+
+Use `Authorization: Bearer <jwt>` for protected endpoints.
+
+### 1) Check credits balance
+
+Method: `GET`  
+URL: `http://localhost:8000/credits/balance`  
+Headers: `Authorization: Bearer <jwt>`
+
+### 2) Analyse text
+
+Method: `POST`  
+URL: `http://localhost:8000/api/analyse`  
+Headers: `Authorization: Bearer <jwt>`, `Content-Type: application/json`  
+Body:
+
+```json
+{
+  "text": "This is a valid sample text for analysis endpoint."
+}
+```
+
+### 3) Submit summarise job and poll status
+
+Method: `POST`  
+URL: `http://localhost:8000/api/summarise`  
+Headers: `Authorization: Bearer <jwt>`, `Content-Type: application/json`  
+Body:
+
+```json
+{
+  "text": "This is a valid sample text for async summarisation endpoint."
+}
+```
+
+Then poll:
+
+Method: `GET`  
+URL: `http://localhost:8000/api/jobs/<job_id>`  
+Headers: `Authorization: Bearer <jwt>`
