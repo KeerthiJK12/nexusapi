@@ -10,36 +10,53 @@ NexusAPI is a multi-tenant, credit-gated backend API built with FastAPI, async S
 
 ## Run Locally (Exact Commands)
 
-### Start Dependencies First
+Use these exact commands.
 
-If you run PostgreSQL and Redis in WSL/Linux:
+### 1) Start services in WSL (Ubuntu terminal)
 
 ```bash
 sudo service postgresql start
-redis-server
+sudo service postgresql status
+sudo service redis-server start
+redis-cli ping
 ```
 
-If Redis is already running, `redis-server` may show port in use. That is fine.
-
-### Windows (PowerShell)
+### 2) Setup project in PowerShell
 
 ```powershell
-cd c:\Users\laptop\OneDrive\Desktop\Backend\nexusapi
-python -m venv .venv
+cd C:\Users\laptop\OneDrive\Desktop\Backend\nexusapi
+py -3.12 -m venv .venv
 .\.venv\Scripts\Activate.ps1
-pip install -r requirements.txt
+python -m pip install --upgrade pip setuptools wheel
+python -m pip install fastapi "uvicorn[standard]" sqlalchemy asyncpg psycopg2-binary alembic "python-jose[cryptography]" authlib pydantic redis arq structlog python-dotenv email-validator itsdangerous httpx
+```
+
+### 3) Run migrations in PowerShell
+
+```powershell
+$env:DATABASE_URL="postgresql+psycopg2://postgres:postgres@localhost:5432/nexusapi"
 alembic upgrade head
-uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
-In a second terminal (worker):
+### 4) Start API (PowerShell Terminal 1)
 
 ```powershell
-cd c:\Users\laptop\OneDrive\Desktop\Backend\nexusapi
+cd C:\Users\laptop\OneDrive\Desktop\Backend\nexusapi
 .\.venv\Scripts\Activate.ps1
+$env:DATABASE_URL="postgresql+asyncpg://postgres:postgres@localhost:5432/nexusapi"
+$env:REDIS_URL="redis://localhost:6379/0"
+python -m uvicorn app.main:app --reload --reload-dir app
+```
+
+### 5) Start worker (PowerShell Terminal 2)
+
+```powershell
+cd C:\Users\laptop\OneDrive\Desktop\Backend\nexusapi
+.\.venv\Scripts\Activate.ps1
+$env:DATABASE_URL="postgresql+asyncpg://postgres:postgres@localhost:5432/nexusapi"
+$env:REDIS_URL="redis://localhost:6379/0"
 python -m arq app.worker.WorkerSettings
 ```
-
 
 ## Environment Variables
 
@@ -84,8 +101,8 @@ Start worker for live setup (local worker processing live queue):
 ```powershell
 cd c:\Users\laptop\OneDrive\Desktop\Backend\nexusapi
 .\.venv\Scripts\Activate.ps1
-$env:DATABASE_URL="postgresql+asyncpg://nexusapi_db_user:bTzWlpruOiukcqxrgweFbA3xy2HHOCVM@dpg-d6hht0h4tr6s73bscan0-a.singapore-postgres.render.com/nexusapi_db"
-$env:REDIS_URL="rediss://default:ARbQAAImcDI2ZTVhZGY3YzUwYzc0NzBlYmE2MDFhNjA1OTM1ZDJiMXAyNTg0MA@humorous-grubworm-5840.upstash.io:6379"
+$env:DATABASE_URL="postgresql+asyncpg://<render_db_user>:<render_db_password>@<render_db_host>/<render_db_name>"
+$env:REDIS_URL="rediss://default:<upstash_password>@<upstash_host>:6379"
 python -m arq app.worker.WorkerSettings
 ```
 
@@ -130,3 +147,5 @@ Then poll:
 Method: `GET`  
 URL: `http://localhost:8000/api/jobs/<job_id>`  
 Headers: `Authorization: Bearer <jwt>`
+
+
